@@ -63,7 +63,7 @@ function Dashboard({ user, setUser }) {
     }
   };
 
-  if (processingAuth) {
+  if (processingAuth || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-center space-y-4">
