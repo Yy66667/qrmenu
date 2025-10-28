@@ -32,7 +32,9 @@ function Dashboard({ user, setUser }) {
 
   const handleAuth = async (sessionId) => {
     setProcessingAuth(true);
+    console.log('Processing auth with session_id:', sessionId);
     try {
+      console.log('Calling:', `${API}/auth/session`);
       const response = await axios.post(
         `${API}/auth/session`,
         {},
@@ -41,11 +43,13 @@ function Dashboard({ user, setUser }) {
           withCredentials: true
         }
       );
+      console.log('Auth response:', response.data);
       setUser(response.data.user);
       window.history.replaceState({}, document.title, '/dashboard');
       toast.success('Welcome! You are now logged in.');
     } catch (error) {
       console.error('Auth error:', error);
+      console.error('Error response:', error.response);
       toast.error('Authentication failed. Please try again.');
       navigate('/');
     } finally {
