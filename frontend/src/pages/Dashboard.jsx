@@ -22,10 +22,8 @@ function Dashboard({ user, setUser }) {
 
   useEffect(() => {
     const hash = location.hash;
-    console.log('Dashboard mounted, hash:', hash);
     if (hash && hash.includes('session_id=')) {
       const sessionId = hash.split('session_id=')[1].split('&')[0];
-      console.log('Found session_id:', sessionId);
       handleAuth(sessionId);
     }
   }, [location]);
