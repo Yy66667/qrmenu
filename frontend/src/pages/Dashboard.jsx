@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +16,40 @@ const API = `${BACKEND_URL}/api`;
 
 function Dashboard({ user, setUser }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("menu");
+  const [processingAuth, setProcessingAuth] = useState(false);
+
+  useEffect(() => {
+    const hash = location.hash;
+    if (hash && hash.includes('session_id=')) {
+      const sessionId = hash.split('session_id=')[1].split('&')[0];
+      handleAuth(sessionId);
+    }
+  }, [location]);
+
+  const handleAuth = async (sessionId) => {
+    setProcessingAuth(true);
+    try {
+      const response = await axios.post(
+        `${API}/auth/session`,
+        {},
+        {
+          headers: { 'X-Session-ID': sessionId },
+          withCredentials: true
+        }
+      );
+      setUser(response.data.user);
+      window.history.replaceState({}, document.title, '/dashboard');
+      toast.success('Welcome! You are now logged in.');
+    } catch (error) {
+      console.error('Auth error:', error);
+      toast.error('Authentication failed. Please try again.');
+      navigate('/');
+    } finally {
+      setProcessingAuth(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
