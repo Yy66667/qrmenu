@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -10,6 +10,18 @@ import "@/App.css";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Protected route that allows access if user is authenticated OR if there's a session_id in the hash
+function ProtectedRoute({ user, setUser, children }) {
+  const location = useLocation();
+  const hasSessionId = location.hash && location.hash.includes('session_id=');
+  
+  if (!user && !hasSessionId) {
+    return <Navigate to="/" />;
+  }
+  
+  return children;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -47,7 +59,11 @@ function App() {
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Landing setUser={setUser} />} />
           <Route 
             path="/dashboard" 
-            element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/" />} 
+            element={
+              <ProtectedRoute user={user} setUser={setUser}>
+                <Dashboard user={user} setUser={setUser} />
+              </ProtectedRoute>
+            } 
           />
           <Route path="/menu/:tableId" element={<CustomerMenu />} />
         </Routes>
