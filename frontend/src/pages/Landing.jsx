@@ -42,7 +42,7 @@ function Landing({ setUser }) {
   };
 
   const handleLogin = () => {
-    const redirectUrl = `${FRONTEND_URL}/dashboard`;
+    const redirectUrl = window.location.origin + '/dashboard';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
