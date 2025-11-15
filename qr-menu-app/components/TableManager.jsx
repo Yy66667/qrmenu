@@ -8,9 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Plus, QrCode, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 function TableManager() {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +20,7 @@ function TableManager() {
 
   const fetchTables = async () => {
     try {
-      const response = await axios.get(`${API}/tables`, { withCredentials: true });
+      const response = await axios.get("/api/tables");
       setTables(response.data);
     } catch (error) {
       console.error("Error fetching tables:", error);
@@ -43,9 +40,8 @@ function TableManager() {
 
     try {
       await axios.post(
-        `${API}/tables`,
-        { table_number: parseInt(tableNumber) },
-        { withCredentials: true }
+        `/api/tables`,
+        { table_number: parseInt(tableNumber) }
       );
       toast.success("Table created");
       setDialogOpen(false);
@@ -65,7 +61,7 @@ function TableManager() {
     if (!window.confirm("Are you sure you want to delete this table?")) return;
 
     try {
-      await axios.delete(`${API}/tables/${id}`, { withCredentials: true });
+      await axios.delete(`/api/tables/${id}`);
       toast.success("Table deleted");
       fetchTables();
     } catch (error) {
@@ -76,7 +72,7 @@ function TableManager() {
 
   const downloadQR = async (tableId, tableNum) => {
     try {
-      const response = await axios.get(`${API}/tables/${tableId}/qr`, {
+      const response = await axios.get(`/api/tables/${tableId}/qr`, {
         responseType: 'blob'
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));

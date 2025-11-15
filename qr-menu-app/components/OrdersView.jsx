@@ -6,10 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle2, ChefHat } from "lucide-react";
 import { toast } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-const WS_URL = BACKEND_URL.replace('https', 'wss').replace('http', 'ws');
-
 function OrdersView() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,17 +13,13 @@ function OrdersView() {
 
   useEffect(() => {
     fetchOrders();
-    
-    // Setup WebSocket
-    const ws = new WebSocket(`${WS_URL}/ws`);
-    
+    // Setup WebSocket (if you have /api/socket route)
+    const ws = new WebSocket("/api/socket");
     ws.onopen = () => {
       console.log("WebSocket connected");
     };
-    
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
       if (data.type === "new_order") {
         toast.success(`New order from Table ${data.order.table_number}!`);
         fetchOrders();
@@ -35,11 +27,9 @@ function OrdersView() {
         fetchOrders();
       }
     };
-    
     ws.onerror = (error) => {
       console.error("WebSocket error:", error);
     };
-    
     return () => {
       ws.close();
     };
@@ -47,7 +37,7 @@ function OrdersView() {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${API}/orders`, { withCredentials: true });
+      const response = await axios.get("/api/orders");
       setOrders(response.data);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -59,11 +49,7 @@ function OrdersView() {
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      await axios.put(
-        `${API}/orders/${orderId}/status`,
-        { status: newStatus },
-        { withCredentials: true }
-      );
+      await axios.put(`/api/orders/${orderId}/status`, { status: newStatus });
       toast.success("Order status updated");
       fetchOrders();
     } catch (error) {

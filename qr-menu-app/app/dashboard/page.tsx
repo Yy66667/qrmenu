@@ -1,65 +1,72 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, UtensilsCrossed } from "lucide-react";
-import { toast } from "sonner";
-import MenuManager from "../components/MenuManager";
-import TableManager from "../components/TableManager";
-import OrdersView from "../components/OrdersView";
+// Migrated from src/pages/Dashboard.jsx
+'use client';
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import axios from 'axios';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { LogOut, UtensilsCrossed } from 'lucide-react';
+import { toast } from 'sonner';
+import MenuManager from '@/components/MenuManager';
+import TableManager from '@/components/TableManager';
+import OrdersView from '@/components/OrdersView';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-function Dashboard({ user, setUser }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [activeTab, setActiveTab] = useState("menu");
+export default function Dashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('menu');
   const [processingAuth, setProcessingAuth] = useState(false);
 
   useEffect(() => {
-    const hash = location.hash;
+    const hash = window.location.hash;
     if (hash && hash.includes('session_id=')) {
       const sessionId = hash.split('session_id=')[1].split('&')[0];
       handleAuth(sessionId);
+    } else {
+      fetchUser();
     }
-  }, [location]);
+  }, [pathname]);
 
-  const handleAuth = async (sessionId) => {
+  const handleAuth = async (sessionId: string) => {
     setProcessingAuth(true);
     try {
-      const response = await axios.post(
-        `${API}/auth/session`,
-        {},
-        {
-          headers: { 'X-Session-ID': sessionId },
-          withCredentials: true
-        }
-      );
+      const response = await axios.post('/api/auth/session', {}, {
+        headers: { 'X-Session-ID': sessionId },
+        withCredentials: true,
+      });
       setUser(response.data.user);
       window.history.replaceState({}, document.title, '/dashboard');
       toast.success('Welcome! You are now logged in.');
     } catch (error) {
       console.error('Auth error:', error);
       toast.error('Authentication failed. Please try again.');
-      navigate('/');
+      router.push('/');
     } finally {
       setProcessingAuth(false);
     }
   };
 
+  const fetchUser = async () => {
+    try {
+      const response = await axios.get('/api/auth/me', { withCredentials: true });
+      setUser(response.data);
+    } catch (error) {
+      setUser(null);
+    }
+  };
+
   const handleLogout = async () => {
     try {
-      await axios.post(`${API}/auth/logout`, {}, { withCredentials: true });
+      await axios.post('/api/auth/logout', {}, { withCredentials: true });
       setUser(null);
-      navigate("/");
-      toast.success("Logged out successfully");
+      router.push('/');
+      toast.success('Logged out successfully');
     } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Logout failed");
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
     }
   };
 
@@ -76,7 +83,6 @@ function Dashboard({ user, setUser }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -88,7 +94,6 @@ function Dashboard({ user, setUser }) {
                 <h1 className="text-xl font-bold text-slate-900">QR Menu Admin</h1>
               </div>
             </div>
-
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-9 w-9">
@@ -100,45 +105,27 @@ function Dashboard({ user, setUser }) {
                   <p className="text-xs text-slate-500">{user.email}</p>
                 </div>
               </div>
-              <Button
-                data-testid="logout-btn"
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="rounded-full"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" /> Logout
               </Button>
             </div>
           </div>
         </div>
       </header>
-
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white/80 backdrop-blur-sm p-1 rounded-xl shadow-sm">
-            <TabsTrigger value="menu" data-testid="menu-tab" className="rounded-lg">
-              Menu Items
-            </TabsTrigger>
-            <TabsTrigger value="tables" data-testid="tables-tab" className="rounded-lg">
-              Tables & QR
-            </TabsTrigger>
-            <TabsTrigger value="orders" data-testid="orders-tab" className="rounded-lg">
-              Orders
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList>
+            <TabsTrigger value="menu">Menu</TabsTrigger>
+            <TabsTrigger value="tables">Tables</TabsTrigger>
+            <TabsTrigger value="orders">Orders</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="menu" data-testid="menu-content">
+          <TabsContent value="menu">
             <MenuManager />
           </TabsContent>
-
-          <TabsContent value="tables" data-testid="tables-content">
+          <TabsContent value="tables">
             <TableManager />
           </TabsContent>
-
-          <TabsContent value="orders" data-testid="orders-content">
+          <TabsContent value="orders">
             <OrdersView />
           </TabsContent>
         </Tabs>
@@ -146,5 +133,3 @@ function Dashboard({ user, setUser }) {
     </div>
   );
 }
-
-export default Dashboard;

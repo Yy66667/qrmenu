@@ -9,9 +9,6 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 function MenuManager() {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +27,7 @@ function MenuManager() {
 
   const fetchMenu = async () => {
     try {
-      const response = await axios.get(`${API}/menu`);
+      const response = await axios.get("/api/menu");
       setMenuItems(response.data);
     } catch (error) {
       console.error("Error fetching menu:", error);
@@ -51,16 +48,14 @@ function MenuManager() {
     try {
       if (editingItem) {
         await axios.put(
-          `${API}/menu/${editingItem.id}`,
-          { ...formData, price: parseFloat(formData.price) },
-          { withCredentials: true }
+          `/api/menu/${editingItem.id}`,
+          { ...formData, price: parseFloat(formData.price) }
         );
         toast.success("Menu item updated");
       } else {
         await axios.post(
-          `${API}/menu`,
-          { ...formData, price: parseFloat(formData.price) },
-          { withCredentials: true }
+          `/api/menu`,
+          { ...formData, price: parseFloat(formData.price) }
         );
         toast.success("Menu item added");
       }
@@ -78,7 +73,7 @@ function MenuManager() {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
 
     try {
-      await axios.delete(`${API}/menu/${id}`, { withCredentials: true });
+      await axios.delete(`/api/menu/${id}`);
       toast.success("Menu item deleted");
       fetchMenu();
     } catch (error) {
