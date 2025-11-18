@@ -3,28 +3,36 @@ import connectDB from '@/lib/mongodb';
 import { MenuItemModel } from '@/lib/models';
 import { getCurrentUser, requireAuth } from '@/lib/auth';
 
+/* ------------------------ UPDATE MENU ITEM ------------------------ */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
+    const { params } = context;
+    const { id } = params;
+
     const user = await getCurrentUser();
     requireAuth(user);
 
-    const { id } = await params;
-    const body = await request.json();
     await connectDB();
 
-    const updateData: any = {};
+    const body = await request.json();
+    const updateData: Record<string, any> = {};
+
     if (body.name !== undefined) updateData.name = body.name;
     if (body.price !== undefined) updateData.price = body.price;
+
+    // Accept both imageUrl and image_url
     if (body.imageUrl !== undefined || body.image_url !== undefined) {
-      updateData.imageUrl = body.imageUrl || body.image_url;
+      updateData.imageUrl = body.imageUrl ?? body.image_url;
     }
+
     if (body.available !== undefined) updateData.available = body.available;
+    if (body.category !== undefined) updateData.category = body.category;
 
     const item = await MenuItemModel.findOneAndUpdate(
-      { id },
+      { _id: id, ownerId: user.id },
       { $set: updateData },
       { new: true }
     );
@@ -36,25 +44,36 @@ export async function PUT(
     return NextResponse.json(item);
   } catch (error: any) {
     console.error('Update menu item error:', error);
+
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ detail: 'Not authenticated' }, { status: 401 });
     }
-    return NextResponse.json({ detail: 'Failed to update menu item' }, { status: 500 });
+
+    return NextResponse.json(
+      { detail: 'Failed to update menu item' },
+      { status: 500 }
+    );
   }
 }
 
+/* ------------------------ DELETE MENU ITEM ------------------------ */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
+    const { params } = context;
+    const { id } = params;
+
     const user = await getCurrentUser();
     requireAuth(user);
 
-    const { id } = await params;
     await connectDB();
 
-    const result = await MenuItemModel.deleteOne({ id });
+    const result = await MenuItemModel.deleteOne({
+      _id: id,
+      ownerId: user.id,
+    });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ detail: 'Item not found' }, { status: 404 });
@@ -63,9 +82,14 @@ export async function DELETE(
     return NextResponse.json({ message: 'Item deleted' });
   } catch (error: any) {
     console.error('Delete menu item error:', error);
+
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ detail: 'Not authenticated' }, { status: 401 });
     }
-    return NextResponse.json({ detail: 'Failed to delete menu item' }, { status: 500 });
+
+    return NextResponse.json(
+      { detail: 'Failed to delete menu item' },
+      { status: 500 }
+    );
   }
 }

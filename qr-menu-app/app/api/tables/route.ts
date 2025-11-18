@@ -2,59 +2,53 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import { TableModel } from '@/lib/models';
 import { getCurrentUser, requireAuth } from '@/lib/auth';
-import crypto from 'crypto';
 
-function generateId() {
-  return crypto.randomBytes(16).toString('hex');
-}
+async function handler(request: NextRequest, method: string) {
+  const user = await getCurrentUser();
+  requireAuth(user);
 
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    requireAuth(user);
-
-    await connectDB();
-    const tables = await TableModel.find().sort({ tableNumber: 1 });
-    return NextResponse.json(tables);
-  } catch (error: any) {
-    console.error('Get tables error:', error);
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ detail: 'Not authenticated' }, { status: 401 });
-    }
-    return NextResponse.json({ detail: 'Failed to fetch tables' }, { status: 500 });
+  if (!user?.id) {
+    return NextResponse.json({ detail: 'User not found' }, { status: 401 });
   }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    requireAuth(user);
+  await connectDB();
 
+  if (method === "GET") {
+    const tables = await TableModel.find({ ownerId: user.id }).sort({ tableNumber: 1 });
+    return NextResponse.json(tables);
+  }
+
+  if (method === "POST") {
     const body = await request.json();
-    await connectDB();
 
-    // Check if table number exists
-    const existing = await TableModel.findOne({ tableNumber: body.tableNumber || body.table_number });
-    if (existing) {
-      return NextResponse.json({ detail: 'Table number already exists' }, { status: 400 });
+    const exists = await TableModel.findOne({
+      tableNumber: body.tableNumber,
+      tableName: body.tableName,
+      ownerId: user.id,
+    });
+
+    if (exists) {
+      return NextResponse.json({ detail: 'Table exists' }, { status: 400 });
     }
 
-    const tableId = generateId();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const qrCodeData = `${appUrl}/menu/${tableId}`;
 
     const table = await TableModel.create({
-      id: tableId,
-      tableNumber: body.tableNumber || body.table_number,
-      qrCodeData,
+      tableNumber: body.tableNumber,
+      tableName: body.tableName,
+      ownerId: user.id,
     });
 
     return NextResponse.json(table, { status: 201 });
-  } catch (error: any) {
-    console.error('Create table error:', error);
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ detail: 'Not authenticated' }, { status: 401 });
-    }
-    return NextResponse.json({ detail: 'Failed to create table' }, { status: 500 });
   }
+
+  return NextResponse.json({ detail: "Method not allowed" }, { status: 405 });
+}
+
+export async function GET(req: NextRequest) {
+  return handler(req, "GET");
+}
+
+export async function POST(req: NextRequest) {
+  return handler(req, "POST");
 }

@@ -8,17 +8,30 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Image from "next/image";
+
+// Always force https for Cloudinary URLs
+const fixUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("https://")) return url;
+  if (url.startsWith("http://")) return "https://" + url.slice(7);
+  return url;
+};
 
 function MenuManager() {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     price: "",
-    image_url: "",
-    available: true
+    imageUrl: "",
+    category: "",
+    available: true,
   });
 
   useEffect(() => {
@@ -29,26 +42,55 @@ function MenuManager() {
     try {
       const response = await axios.get("/api/menu");
       setMenuItems(response.data);
-    } catch (error) {
-      console.error("Error fetching menu:", error);
+    } catch {
       toast.error("Failed to load menu");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+
+    const form = new FormData();
+    form.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: form,
+      });
+
+      const data = await res.json();
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: fixUrl(data.url),
+      }));
+
+      toast.success("Image uploaded");
+    } catch {
+      toast.error("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.price) {
-      toast.error("Please fill in all required fields");
+
+    if (!formData.name || !formData.price || !formData.category) {
+      toast.error("Please fill all required fields");
       return;
     }
 
     try {
       if (editingItem) {
         await axios.put(
-          `/api/menu/${editingItem.id}`,
+          `/api/menu/${editingItem._id}`,
           { ...formData, price: parseFloat(formData.price) }
         );
         toast.success("Menu item updated");
@@ -59,37 +101,50 @@ function MenuManager() {
         );
         toast.success("Menu item added");
       }
-      
+
       setDialogOpen(false);
       resetForm();
       fetchMenu();
-    } catch (error) {
-      console.error("Error saving menu item:", error);
+    } catch {
       toast.error("Failed to save menu item");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    if (!window.confirm("Are you sure?")) return;
 
     try {
       await axios.delete(`/api/menu/${id}`);
-      toast.success("Menu item deleted");
+      toast.success("Deleted");
       fetchMenu();
-    } catch (error) {
-      console.error("Error deleting menu item:", error);
-      toast.error("Failed to delete menu item");
+    } catch {
+      toast.error("Failed to delete");
     }
   };
 
-  const openDialog = (item = null) => {
+  // Toggle availability using PUT (your backend supports this already)
+  const toggleAvailability = async (item) => {
+    try {
+      await axios.put(`/api/menu/${item._id}`, {
+        available: !item.available,
+      });
+
+      toast.success("Availability updated");
+      fetchMenu();
+    } catch {
+      toast.error("Failed to update");
+    }
+  };
+
+  const openDialog = (item) => {
     if (item) {
       setEditingItem(item);
       setFormData({
         name: item.name,
         price: item.price.toString(),
-        image_url: item.image_url || "",
-        available: item.available
+        category: item.category,
+        imageUrl: fixUrl(item.imageUrl),
+        available: item.available,
       });
     }
     setDialogOpen(true);
@@ -99,8 +154,9 @@ function MenuManager() {
     setFormData({
       name: "",
       price: "",
-      image_url: "",
-      available: true
+      category: "",
+      imageUrl: "",
+      available: true,
     });
     setEditingItem(null);
   };
@@ -110,45 +166,49 @@ function MenuManager() {
     resetForm();
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
-  }
+  if (loading) return <div className="text-center py-8">Loading...</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">Menu Items</h2>
-        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button
-              data-testid="add-menu-item-btn"
-              onClick={() => openDialog()}
-              className="bg-slate-900 hover:bg-slate-800 rounded-full"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setEditingItem(null);
+                  setDialogOpen(true);
+                }}
+                className="bg-slate-900 text-slate-200 rounded-full"
+              >
+                <Plus className="w-4 h-4" /> Add Item
+              </Button>
+            </DialogTrigger>
+
+
+          <DialogContent className="sm:max-w-md bg-white">
             <DialogHeader>
               <DialogTitle>{editingItem ? "Edit" : "Add"} Menu Item</DialogTitle>
             </DialogHeader>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="name">Name *</Label>
+                <Label>Name *</Label>
                 <Input
-                  id="name"
-                  data-testid="menu-name-input"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
               </div>
+
               <div>
-                <Label htmlFor="price">Price *</Label>
+                <Label>Price *</Label>
                 <Input
-                  id="price"
-                  data-testid="menu-price-input"
                   type="number"
                   step="0.01"
                   value={formData.price}
@@ -156,29 +216,56 @@ function MenuManager() {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="image_url">Image URL</Label>
-                <Input
-                  id="image_url"
-                  data-testid="menu-image-input"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://..."
-                />
+
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, category: value })
+                  }
+                >
+                  <SelectTrigger className="w-full bg-white">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="veg">Veg</SelectItem>
+                    <SelectItem value="non-veg">Non-Veg</SelectItem>
+                    <SelectItem value="egg">Egg</SelectItem>
+                    <SelectItem value="beverage">Beverage</SelectItem>
+                    <SelectItem value="dessert">Dessert</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              <div>
+                <Label>Image Upload</Label>
+                <Input type="file" accept="image/*" onChange={handleImageUpload} />
+                {uploading && <p className="text-sm text-blue-600 mt-1">Uploading…</p>}
+
+                {formData.imageUrl && (
+                  <img
+                    src={formData.imageUrl}
+                    className="mt-2 h-32 rounded-lg object-cover"
+                  />
+                )}
+              </div>
+
               {editingItem && (
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="available"
-                    data-testid="menu-available-switch"
                     checked={formData.available}
-                    onCheckedChange={(checked) => setFormData({ ...formData, available: checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, available: checked })
+                    }
                   />
-                  <Label htmlFor="available">Available</Label>
+                  <Label>Available</Label>
                 </div>
               )}
+
               <div className="flex space-x-2">
-                <Button type="submit" data-testid="save-menu-item-btn" className="flex-1 bg-slate-900 hover:bg-slate-800">
+                <Button type="submit" className="flex-1 bg-slate-900 text-slate-200">
                   {editingItem ? "Update" : "Add"}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleDialogClose} className="flex-1">
@@ -190,72 +277,56 @@ function MenuManager() {
         </Dialog>
       </div>
 
+      {/* MENU GRID */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {menuItems.map((item) => (
-          <Card key={item.id} data-testid={`menu-item-card-${item.id}`} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <Card key={item._id} data-testid={`menu-item-card-${item._id}`} className="overflow-hidden hover:shadow-lg transition-shadow">
             <CardContent className="p-4">
-              {item.image_url && (
-                <div className="mb-3 rounded-lg overflow-hidden bg-slate-100 h-40">
-                  <img 
-                    src={item.image_url} 
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+              {item.imageUrl && (
+                <Image
+                  src={fixUrl(item.imageUrl) || "/placeholder-food.svg"}
+                  alt={item.name}
+                  width={96}
+                  height={96}
+                  className="w-full h-40 object-cover rounded-lg mb-3"
+                  priority
+                />
               )}
-              <div className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{item.name}</h3>
-                    <p className="text-lg font-bold text-slate-900">${item.price.toFixed(2)}</p>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    item.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {item.available ? 'Available' : 'Unavailable'}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    data-testid={`edit-menu-item-${item.id}`}
-                    onClick={() => openDialog(item)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                  >
-                    <Edit2 className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    data-testid={`delete-menu-item-${item.id}`}
-                    onClick={() => handleDelete(item.id)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+
+              <h3 className="font-semibold text-slate-900">{item.name}</h3>
+              <p className="text-slate-600 text-sm capitalize">{item.category}</p>
+              <p className="text-lg font-bold text-slate-900">₹{item.price}</p>
+
+              <Button
+                onClick={() => toggleAvailability(item)}
+                size="sm"
+                className={`w-full mt-2 ${
+                  item.available
+                    ? "bg-green-600 hover:bg-green-700 text-white"
+                    : "bg-red-600 hover:bg-red-700 text-white"
+                }`}
+              >
+                {item.available ? "Available" : "Unavailable"}
+              </Button>
+
+              <div className="flex space-x-2 mt-3">
+                <Button onClick={() => openDialog(item)} variant="outline" size="sm" className="flex-1">
+                  <Edit2 className="w-3 h-3 mr-1" /> Edit
+                </Button>
+
+                <Button
+                  onClick={() => handleDelete(item._id)}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {menuItems.length === 0 && (
-        <div className="text-center py-16 bg-white/60 backdrop-blur-sm rounded-2xl">
-          <p className="text-slate-500 mb-4">No menu items yet</p>
-          <Button
-            data-testid="add-first-menu-item-btn"
-            onClick={() => openDialog()}
-            className="bg-slate-900 hover:bg-slate-800 rounded-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Your First Item
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

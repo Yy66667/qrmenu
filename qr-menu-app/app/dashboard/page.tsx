@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import MenuManager from '@/components/MenuManager';
 import TableManager from '@/components/TableManager';
 import OrdersView from '@/components/OrdersView';
+import { Badge } from '@/components/ui/badge';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('menu');
   const [processingAuth, setProcessingAuth] = useState(false);
+  const [showNotificationDot, setShowNotificationDot] = useState(false);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -117,7 +119,14 @@ export default function Dashboard() {
           <TabsList>
             <TabsTrigger value="menu">Menu</TabsTrigger>
             <TabsTrigger value="tables">Tables</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
+            <TabsTrigger value="orders" className="relative">
+              <span>
+                Orders
+                {showNotificationDot && (
+                  <span className="absolute -top-1 -right-2 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                )}
+              </span>
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="menu">
             <MenuManager />
@@ -126,7 +135,7 @@ export default function Dashboard() {
             <TableManager />
           </TabsContent>
           <TabsContent value="orders">
-            <OrdersView />
+            <OrdersView showNotificationDot={showNotificationDot} setShowNotificationDot={setShowNotificationDot} />
           </TabsContent>
         </Tabs>
       </main>

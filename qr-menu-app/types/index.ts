@@ -1,5 +1,5 @@
 export interface User {
-  id: string;
+  _id: string;
   email: string;
   name: string;
   picture?: string;
@@ -8,40 +8,44 @@ export interface User {
 
 export interface Session {
   sessionToken: string;
-  userId: string;
+  userId: string; // ObjectId as string
   expiresAt: Date;
 }
 
 export interface MenuItem {
-  id: string;
+  _id: string;
   name: string;
   price: number;
   imageUrl?: string;
   available: boolean;
   createdAt: Date;
+  ownerId: string; // ObjectId
+  category?: string;
 }
 
 export interface Table {
-  id: string;
+  _id: string;
   tableNumber: number;
-  qrCodeData: string;
+  tableName: string;
   createdAt: Date;
+  ownerId: string; // ObjectId
 }
 
 export interface OrderItem {
-  menuItemId: string;
+  menuItemId: string; // ObjectId
   menuItemName: string;
   quantity: number;
   price: number;
 }
 
 export interface Order {
-  id: string;
-  tableId: string;
+  _id: string;
+  tableId: string; // ObjectId
   tableNumber: number;
   items: OrderItem[];
   status: 'pending' | 'preparing' | 'completed';
   total: number;
   createdAt: Date;
   completedAt?: Date;
+  ownerId: string; // ObjectId
 }

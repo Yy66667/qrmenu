@@ -1,84 +1,57 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import axios from 'axios';
-import { v4 as uuidv4 } from 'crypto';
-import connectDB from '@/lib/mongodb';
-import { UserModel, SessionModel } from '@/lib/models';
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import connectDB from "@/lib/mongodb";
+import { UserModel, SessionModel } from "@/lib/models";
 
-function generateUUID() {
-  return uuidv4().replace(/-/g, '');
-}
 
-export async function POST(request: NextRequest) {
+export async function GET() {
   try {
-    const sessionId = request.headers.get('X-Session-ID');
-
-    if (!sessionId) {
-      return NextResponse.json({ detail: 'Session ID required' }, { status: 400 });
-    }
-
-    // Exchange session_id for user data
-    const authResponse = await axios.get(
-      'https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data',
-      { headers: { 'X-Session-ID': sessionId } }
-    );
-
-    if (authResponse.status !== 200) {
-      return NextResponse.json({ detail: 'Invalid session' }, { status: 401 });
-    }
-
-    const userData = authResponse.data;
-
     await connectDB();
 
-    // Check if user exists
-    let user = await UserModel.findOne({ email: userData.email });
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("session_token")?.value;
 
-    if (!user) {
-      // Create new user
-      user = await UserModel.create({
-        id: userData.id || generateUUID(),
-        email: userData.email,
-        name: userData.name,
-        picture: userData.picture,
-      });
+    if (!sessionToken) {
+      return NextResponse.json({ user: null });
     }
 
-    // Create session
-    const sessionToken = userData.session_token;
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const session = await SessionModel.findOne({ sessionToken });
 
-    await SessionModel.create({
-      sessionToken,
-      userId: user.id,
-      expiresAt,
-    });
+    if (!session) {
+      return NextResponse.json({ user: null });
+    }
 
-    // Set cookie
-    const cookieStore = await cookies();
-    cookieStore.set('session_token', sessionToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60,
-      path: '/',
-    });
+    // Check expiry
+    if (new Date(session.expiresAt) < new Date()) {
+      return NextResponse.json({ user: null });
+    }
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-        createdAt: user.createdAt,
-      },
-      sessionToken,
-    });
-  } catch (error: any) {
-    console.error('Auth error:', error);
-    return NextResponse.json(
-      { detail: error.response?.data?.detail || 'Invalid session' },
-      { status: 401 }
-    );
+    const user = await UserModel.findById(session.userId);
+
+    if (!user) {
+      return NextResponse.json({ user: null });
+    }
+
+    // Safe response
+    const safeUser = {
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      createdAt: user.createdAt,
+    };
+
+    return NextResponse.json({ user: safeUser });
+  } catch (err) {
+    console.error("GET /auth/me error:", err);
+    return NextResponse.json({ user: null });
   }
+}
+
+
+export async function POST() {
+  return NextResponse.json(
+    { error: "Not allowed. Sessions must be created by the OAuth callback." },
+    { status: 403 }
+  );
 }

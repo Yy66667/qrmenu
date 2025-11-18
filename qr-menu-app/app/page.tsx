@@ -36,12 +36,10 @@ export default function Landing() {
     }
   };
 
-  const handleLogin = () => {
-    if (typeof window !== 'undefined') {
-      const redirectUrl = window.location.origin + '/dashboard';
-      window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-    }
-  };
+const handleLogin = () => {
+  window.location.href = "/api/auth/google/login";
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">

@@ -5,40 +5,69 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle2, ChefHat } from "lucide-react";
 import { toast } from "sonner";
+import { io } from "socket.io-client";
+import Image from "next/image";
 
-function OrdersView() {
+function OrdersView({ showNotificationDot, setShowNotificationDot }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all"); // all, pending, preparing, completed
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
 
   useEffect(() => {
     fetchOrders();
-    // Setup WebSocket (if you have /api/socket route)
-    const ws = new WebSocket("/api/socket");
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "new_order") {
-        toast.success(`New order from Table ${data.order.table_number}!`);
-        fetchOrders();
-      } else if (data.type === "order_update") {
-        fetchOrders();
-      }
-    };
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-    return () => {
-      ws.close();
-    };
+
+    const socket = io({
+      path: "/socket.io/",
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      console.log("Connected:", socket.id);
+    });
+
+    socket.on("new_order", (data) => {
+      console.log("New order:", data);
+      fetchOrders();
+    });
+
+    socket.on("order_update", (data) => {
+      console.log("Order updated:", data);
+      fetchOrders();
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Disconnected");
+    });
+
+    return () => socket.disconnect();
   }, []);
 
   const fetchOrders = async () => {
     try {
       const response = await axios.get("/api/orders");
-      setOrders(response.data);
+
+      const normalized = response.data.map((order) => ({
+        _id: order._id,
+        table_number: order.tableNumber,
+        created_at: order.createdAt,
+        status: order.status,
+        total: order.total,
+        items: order.items.map((it) => ({
+          menu_item_name: it.menuItemName,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+      }));
+
+      setOrders(normalized);
+
+      // Show notification dot if any order is pending
+      if (normalized.some((o) => o.status === "pending")) {
+        setShowNotificationDot(true);
+      } else {
+        setShowNotificationDot(false);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast.error("Failed to load orders");
@@ -84,7 +113,7 @@ function OrdersView() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = orders.filter((order) => {
     if (filter === "all") return true;
     return order.status === filter;
   });
@@ -97,13 +126,21 @@ function OrdersView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">Orders</h2>
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 items-center">
+          <Button
+            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            variant="outline"
+            size="sm"
+            className="border"
+          >
+            {viewMode === "grid" ? "List View" : "Grid View"}
+          </Button>
           <Button
             data-testid="filter-all"
             onClick={() => setFilter("all")}
             variant={filter === "all" ? "default" : "outline"}
             size="sm"
-            className={filter === "all" ? "bg-slate-900" : ""}
+            className={filter === "all" ? "bg-slate-900 text-white" : ""}
           >
             All
           </Button>
@@ -112,7 +149,7 @@ function OrdersView() {
             onClick={() => setFilter("pending")}
             variant={filter === "pending" ? "default" : "outline"}
             size="sm"
-            className={filter === "pending" ? "bg-slate-900" : ""}
+            className={filter === "pending" ? "bg-slate-900 text-white" : ""}
           >
             Pending
           </Button>
@@ -121,7 +158,7 @@ function OrdersView() {
             onClick={() => setFilter("preparing")}
             variant={filter === "preparing" ? "default" : "outline"}
             size="sm"
-            className={filter === "preparing" ? "bg-slate-900" : ""}
+            className={filter === "preparing" ? "bg-slate-900 text-white" : ""}
           >
             Preparing
           </Button>
@@ -130,27 +167,43 @@ function OrdersView() {
             onClick={() => setFilter("completed")}
             variant={filter === "completed" ? "default" : "outline"}
             size="sm"
-            className={filter === "completed" ? "bg-slate-900" : ""}
+            className={filter === "completed" ? "bg-slate-900 text-white" : ""}
           >
             Completed
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div
+        className={
+          viewMode === "grid"
+            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
+            : "grid gap-4"
+        }
+      >
         {filteredOrders.map((order) => (
-          <Card key={order.id} data-testid={`order-card-${order.id}`} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <Card
+            key={order._id}
+            data-testid={`order-card-${order._id}`}
+            className="overflow-hidden hover:shadow-lg transition-shadow"
+          >
             <CardContent className="p-6">
               <div className="space-y-4">
                 {/* Order Header */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900">Table {order.table_number}</h3>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      Table {order.table_number}
+                    </h3>
                     <p className="text-sm text-slate-500">
                       {new Date(order.created_at).toLocaleString()}
                     </p>
                   </div>
-                  <Badge className={`${getStatusColor(order.status)} flex items-center space-x-1`}>
+                  <Badge
+                    className={`${getStatusColor(
+                      order.status
+                    )} flex items-center space-x-1`}
+                  >
                     {getStatusIcon(order.status)}
                     <span className="capitalize">{order.status}</span>
                   </Badge>
@@ -159,12 +212,21 @@ function OrdersView() {
                 {/* Order Items */}
                 <div className="space-y-2">
                   {order.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-lg">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-lg"
+                    >
                       <div>
-                        <span className="font-medium text-slate-900">{item.menu_item_name}</span>
-                        <span className="text-slate-500 ml-2">x{item.quantity}</span>
+                        <span className="font-medium text-slate-900">
+                          {item.menu_item_name}
+                        </span>
+                        <span className="text-slate-500 ml-2">
+                          x{item.quantity}
+                        </span>
                       </div>
-                      <span className="font-semibold text-slate-900">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-semibold text-slate-900">
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -172,7 +234,9 @@ function OrdersView() {
                 {/* Total */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                   <span className="font-bold text-slate-900">Total</span>
-                  <span className="text-xl font-bold text-slate-900">${order.total.toFixed(2)}</span>
+                  <span className="text-xl font-bold text-slate-900">
+                    ${order.total.toFixed(2)}
+                  </span>
                 </div>
 
                 {/* Action Buttons */}
@@ -180,8 +244,10 @@ function OrdersView() {
                   <div className="flex space-x-2">
                     {order.status === "pending" && (
                       <Button
-                        data-testid={`mark-preparing-${order.id}`}
-                        onClick={() => updateOrderStatus(order.id, "preparing")}
+                        data-testid={`mark-preparing-${order._id}`}
+                        onClick={() =>
+                          updateOrderStatus(order._id, "preparing")
+                        }
                         className="flex-1 bg-blue-600 hover:bg-blue-700"
                         size="sm"
                       >
@@ -191,8 +257,10 @@ function OrdersView() {
                     )}
                     {order.status === "preparing" && (
                       <Button
-                        data-testid={`mark-completed-${order.id}`}
-                        onClick={() => updateOrderStatus(order.id, "completed")}
+                        data-testid={`mark-completed-${order._id}`}
+                        onClick={() =>
+                          updateOrderStatus(order._id, "completed")
+                        }
                         className="flex-1 bg-green-600 hover:bg-green-700"
                         size="sm"
                       >
