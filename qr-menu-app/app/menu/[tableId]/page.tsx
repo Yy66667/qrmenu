@@ -54,6 +54,7 @@ export default function CustomerMenu() {
       const response = await axios.get("/api/tables");
       const table = response.data.find((t: any) => t._id === tableId);
       setTableInfo(table);
+      console.log("Table Info:", table);
     } catch (error) {
       console.error("Error fetching table info:", error);
     }
@@ -83,6 +84,7 @@ export default function CustomerMenu() {
             const newQty = item.quantity + delta;
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
+          
           return item;
         })
         .filter(Boolean)
@@ -153,7 +155,7 @@ export default function CustomerMenu() {
       <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-slate-200">
         <div className="px-4 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-slate-900">
-            {tableInfo ? `Table ${tableInfo.tableNumber}` : "Menu"}
+            {tableInfo ? `${tableInfo.tableName} ${tableInfo.tableNumber}` : "Menu"}
           </h1>
 
           <div className="flex items-center justify-between">
